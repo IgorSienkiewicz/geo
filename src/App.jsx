@@ -351,16 +351,18 @@ function LeafletMap({ continent, onCountryClick, completed, quizMode }) {
     if (!containerRef.current || mapRef.current) return;
     const L = window.L;
     const map = L.map(containerRef.current, { center:[20,10], zoom:2, minZoom:1, maxZoom:10 });
-    // NOWE - wklej zamiast:
     if (quizMode) {
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",{
-        attribution:"© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom:19
-      }).addTo(map);
-    } else {
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
-        attribution:"© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom:19
-      }).addTo(map);
-    }
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+      attribution:"© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom:19
+    }).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      opacity: 0.08, maxZoom:19
+    }).addTo(map);
+  } else {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+      attribution:"© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom:19
+    }).addTo(map);
+  }
     mapRef.current = map;
     redrawMarkers(map, getVisible(continent), quizMode, completed);
     fitView(map, continent);
