@@ -21,7 +21,15 @@ const CONTINENT_COLORS = {
   "Australia i Oceania": "#f15bb5",
 };
 
-const COUNTRIES = [
+function flagEmoji(flag) {
+  if (!flag) return flag;
+  if (flag.length === 2 && /^[A-Za-z]{2}$/.test(flag)) {
+    return String.fromCodePoint(...flag.toUpperCase().split("").map(ch => 0x1f1e6 + ch.charCodeAt(0) - 65));
+  }
+  return flag;
+}
+
+const COUNTRIES_RAW = [
   {name:"Polska",capital:"Warszawa",continent:"Europa",lat:52.2,lng:21.0,flag:"🇵🇱"},
   {name:"Niemcy",capital:"Berlin",continent:"Europa",lat:52.5,lng:13.4,flag:"🇩🇪"},
   {name:"Francja",capital:"Paryż",continent:"Europa",lat:48.9,lng:2.3,flag:"🇫🇷"},
@@ -114,7 +122,7 @@ const COUNTRIES = [
   {name:"Brunei",capital:"Bandar Seri Begawan",continent:"Azja",lat:4.9,lng:115.0,flag:"🇧🇳"},
   {name:"Timor Wschodni",capital:"Dili",continent:"Azja",lat:-8.6,lng:125.6,flag:"🇹🇱"},
   {name:"Tajwan",capital:"Tajpej",continent:"Azja",lat:25.0,lng:121.5,flag:"🇹🇼"},
-  {name:"Maldywy",capital:"Male",continent:"Azja",lat:4.2,lng:73.5,flag:"🇲🇻"},
+  {name:"Malediwy",capital:"Male",continent:"Azja",lat:4.2,lng:73.5,flag:"🇲🇻"},
   {name:"Stany Zjednoczone",capital:"Waszyngton",continent:"Ameryka Północna",lat:38.9,lng:-77.0,flag:"🇺🇸"},
   {name:"Kanada",capital:"Ottawa",continent:"Ameryka Północna",lat:45.4,lng:-75.7,flag:"🇨🇦"},
   {name:"Meksyk",capital:"Meksyk",continent:"Ameryka Północna",lat:19.4,lng:-99.1,flag:"🇲🇽"},
@@ -219,6 +227,8 @@ const COUNTRIES = [
   {name:"Palau",capital:"Ngerulmud",continent:"Australia i Oceania",lat:7.5,lng:134.6,flag:"🇵🇼"},
   {name:"Tuvalu",capital:"Funafuti",continent:"Australia i Oceania",lat:-8.5,lng:179.2,flag:"🇹🇻"},
 ];
+
+const COUNTRIES = COUNTRIES_RAW.map(c => ({ ...c, flag: flagEmoji(c.flag) }));
 
 const MODES = { LEARN:"learn", MAP_LEARN:"map_learn", MAP_QUIZ:"map_quiz", QUIZ_CAPITAL:"quiz_capital", QUIZ_COUNTRY:"quiz_country", QUIZ_FLAG:"quiz_flag" };
 
@@ -515,7 +525,7 @@ export default function App() {
   ];
 
   return (
-    <div style={{fontFamily:"'Lexend',sans-serif",minHeight:"100vh",background:"#080e1a"}}>
+    <div style={{fontFamily:"'Lexend',sans-serif,'Segoe UI Emoji','Apple Color Emoji','Segoe UI Symbol'",minHeight:"100vh",background:"#080e1a"}}>
       <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"/>
 
       {/* HEADER */}
