@@ -230,7 +230,7 @@ const COUNTRIES_RAW = [
 
 const COUNTRIES = COUNTRIES_RAW.map(c => ({ ...c, flag: flagEmoji(c.flag) }));
 
-const MODES = { LEARN:"learn", MAP_LEARN:"map_learn", MAP_QUIZ:"map_quiz", QUIZ_CAPITAL:"quiz_capital", QUIZ_COUNTRY:"quiz_country", QUIZ_FLAG:"quiz_flag" };
+const MODES = { LEARN:"learn", MAP_LEARN:"map_learn", MAP_QUIZ:"map_quiz", QUIZ_CAPITAL:"quiz_capital", QUIZ_COUNTRY:"quiz_country", QUIZ_FLAG:"quiz_flag", QUIZ_FLASH:"quiz_flash" };
 
 function normalize(s) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
@@ -242,6 +242,16 @@ function shuffle(arr) {
 }
 function getWrongs(correct, key) {
   return shuffle(COUNTRIES.filter(c=>c[key]!==correct[key])).slice(0,3).map(c=>c[key]);
+}
+function getCorrectValue(cur, m, direction="countryToCapital") {
+  if (m===MODES.QUIZ_CAPITAL) return cur.capital;
+  if (m===MODES.QUIZ_COUNTRY) return cur.name;
+  if (m===MODES.QUIZ_FLAG) return cur.name;
+  if (m===MODES.QUIZ_FLASH) return direction==="countryToCapital" ? cur.capital : cur.name;
+  return cur.flag;
+}
+function randomFlashDirection() {
+  return Math.random() < 0.5 ? "countryToCapital" : "capitalToCountry";
 }
 
 // ===== LEARN MAP POPUP (shows info) =====
@@ -448,6 +458,8 @@ export default function App() {
   const [quizOrder, setQuizOrder] = useState([]);
   const [quizIndex, setQuizIndex] = useState(0);
   const [answer, setAnswer] = useState(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [flashDirection, setFlashDirection] = useState("countryToCapital");
   const [options, setOptions] = useState([]);
   const [score, setScore] = useState({correct:0,wrong:0});
   const [showResult, setShowResult] = useState(false);
@@ -461,32 +473,36 @@ export default function App() {
 
   const pool = COUNTRIES.filter(c=>continent==="Wszystkie"||c.continent===continent);
   const filtered = pool.filter(c=>search===""||c.name.toLowerCase().includes(search.toLowerCase())||c.capital.toLowerCase().includes(search.toLowerCase()));
-  const isQuizMode = [MODES.QUIZ_CAPITAL,MODES.QUIZ_COUNTRY,MODES.QUIZ_FLAG].includes(mode);
+  const isQuizMode = [MODES.QUIZ_CAPITAL,MODES.QUIZ_COUNTRY,MODES.QUIZ_FLAG,MODES.QUIZ_FLASH].includes(mode);
   const isMapMode = mode===MODES.MAP_LEARN || mode===MODES.MAP_QUIZ;
-
-  useEffect(()=>{ if(isQuizMode) startQuiz(); },[mode,continent]);
-
-  // Reset map state on mode/continent change
-  useEffect(()=>{ if(isMapMode){ setMapDone(new Set()); setMapScore({c:0,t:0}); } },[mode,continent]);
 
   function startQuiz() {
     const s = shuffle(pool);
-    setQuizOrder(s); setQuizIndex(0); setAnswer(null);
+    setQuizOrder(s); setQuizIndex(0); setAnswer(null); setTypedAnswer("");
     setScore({correct:0,wrong:0}); setShowResult(false);
     setStreak(0); setMaxStreak(0);
-    if(s[0]) genOpts(s[0],mode);
+    setFlashDirection(randomFlashDirection());
+    if(s[0] && mode!==MODES.QUIZ_FLASH) genOpts(s[0],mode);
   }
 
   function genOpts(cur, m) {
-    const key = m===MODES.QUIZ_CAPITAL?"capital":m===MODES.QUIZ_COUNTRY?"name":"flag";
+    if (m===MODES.QUIZ_FLASH) return;
+    const key = m===MODES.QUIZ_CAPITAL?"capital":m===MODES.QUIZ_COUNTRY?"name":"name";
     setOptions(shuffle([cur[key],...getWrongs(cur,key)]));
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(()=>{ if(isQuizMode) startQuiz(); },[isQuizMode,continent]);
+
+  // Reset map state on mode/continent change
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{ if(isMapMode){ setMapDone(new Set()); setMapScore({c:0,t:0}); } },[isMapMode,continent]);
 
   function handleAnswer(opt) {
     if(answer!==null) return;
     const cur = quizOrder[quizIndex];
-    const correct = mode===MODES.QUIZ_CAPITAL?cur.capital:mode===MODES.QUIZ_COUNTRY?cur.name:cur.flag;
-    const ok = opt===correct;
+    const correct = getCorrectValue(cur, mode, flashDirection);
+    const ok = normalize(opt)===normalize(correct);
     setAnswer(opt);
     const ns = ok?streak+1:0;
     setStreak(ns); setMaxStreak(m=>Math.max(m,ns));
@@ -494,7 +510,17 @@ export default function App() {
     setTimeout(()=>{
       const ni = quizIndex+1;
       if(ni>=quizOrder.length){ setShowResult(true); }
-      else { setQuizIndex(ni); setAnswer(null); genOpts(quizOrder[ni],mode); }
+      else {
+        setQuizIndex(ni);
+        setAnswer(null);
+        setTypedAnswer("");
+        const next = quizOrder[ni];
+        if(mode===MODES.QUIZ_FLASH) {
+          setFlashDirection(Math.random()<0.5?"countryToCapital":"capitalToCountry");
+        } else {
+          genOpts(next,mode);
+        }
+      }
     },1200);
   }
 
@@ -512,17 +538,6 @@ export default function App() {
   const mapQuizMode = mode===MODES.MAP_QUIZ;
   const totalInPool = pool.length;
   const mapPct = mapScore.t>0 ? Math.round(mapScore.c/mapScore.t*100) : 0;
-
-  const tabs = [
-    {key:MODES.LEARN, label:"📚 Przeglądaj"},
-    {key:"map_group", label:"🗺️ Mapa", isGroup:true, children:[
-      {key:MODES.MAP_LEARN, label:"📖 Nauka"},
-      {key:MODES.MAP_QUIZ, label:"🎯 Quiz"},
-    ]},
-    {key:MODES.QUIZ_CAPITAL, label:"🏙️ Stolice"},
-    {key:MODES.QUIZ_COUNTRY, label:"🌐 Kraje"},
-    {key:MODES.QUIZ_FLAG, label:"🚩 Flagi"},
-  ];
 
   return (
     <div style={{fontFamily:"'Lexend',sans-serif,'Segoe UI Emoji','Apple Color Emoji','Segoe UI Symbol'",minHeight:"100vh",background:"#080e1a"}}>
@@ -550,6 +565,7 @@ export default function App() {
           <button onClick={()=>setMode(MODES.QUIZ_CAPITAL)} style={{padding:"6px 13px",borderRadius:"18px",border:"none",cursor:"pointer",fontSize:"0.78rem",fontWeight:500,fontFamily:"inherit",background:mode===MODES.QUIZ_CAPITAL?"#4f86c6":"rgba(255,255,255,0.07)",color:mode===MODES.QUIZ_CAPITAL?"#fff":"#6699bb",transition:"all 0.18s"}}>🏙️ Stolice</button>
           <button onClick={()=>setMode(MODES.QUIZ_COUNTRY)} style={{padding:"6px 13px",borderRadius:"18px",border:"none",cursor:"pointer",fontSize:"0.78rem",fontWeight:500,fontFamily:"inherit",background:mode===MODES.QUIZ_COUNTRY?"#4f86c6":"rgba(255,255,255,0.07)",color:mode===MODES.QUIZ_COUNTRY?"#fff":"#6699bb",transition:"all 0.18s"}}>🌐 Kraje</button>
           <button onClick={()=>setMode(MODES.QUIZ_FLAG)} style={{padding:"6px 13px",borderRadius:"18px",border:"none",cursor:"pointer",fontSize:"0.78rem",fontWeight:500,fontFamily:"inherit",background:mode===MODES.QUIZ_FLAG?"#4f86c6":"rgba(255,255,255,0.07)",color:mode===MODES.QUIZ_FLAG?"#fff":"#6699bb",transition:"all 0.18s"}}>🚩 Flagi</button>
+          <button onClick={()=>setMode(MODES.QUIZ_FLASH)} style={{padding:"6px 13px",borderRadius:"18px",border:"none",cursor:"pointer",fontSize:"0.78rem",fontWeight:500,fontFamily:"inherit",background:mode===MODES.QUIZ_FLASH?"#4f86c6":"rgba(255,255,255,0.07)",color:mode===MODES.QUIZ_FLASH?"#fff":"#6699bb",transition:"all 0.18s"}}>🎴 Fiszki</button>
         </div>
       </div>
 
@@ -732,24 +748,48 @@ export default function App() {
                 <div style={{fontSize:"5rem",lineHeight:1.2,margin:"0.4rem 0 0.8rem"}}>{cur.flag}</div>
                 <p style={{color:"#3a5070",fontSize:"0.82rem",margin:0}}>Czyja to flaga?</p>
               </>}
+              {mode===MODES.QUIZ_FLASH&&<>
+                <p style={{color:"#3a5070",fontSize:"0.82rem",margin:"0 0 0.5rem"}}>{flashDirection==="countryToCapital" ? "Podaj stolicę dla poniższego kraju:" : "Podaj państwo dla poniższej stolicy:"}</p>
+                <h2 style={{color:"#d0e0ff",fontSize:"1.9rem",margin:0,fontFamily:"'Space Grotesk',sans-serif"}}>{flashDirection==="countryToCapital" ? cur.name : cur.capital}</h2>
+              </>}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"9px"}}>
-              {options.map(opt=>{
-                const ca = mode===MODES.QUIZ_CAPITAL?cur.capital:mode===MODES.QUIZ_COUNTRY?cur.name:cur.flag;
-                let bg="#0c1628",border="#1a2740",col="#c0d5f0";
-                if(answer!==null){
-                  if(opt===ca){bg="#091a0c";border="#2ca87f";col="#2ca87f";}
-                  else if(opt===answer){bg="#1a0909";border="#e85d4a";col="#e85d4a";}
-                  else{bg="#060c18";border="#0e1a2e";col="#223344";}
-                }
-                return <button key={opt} onClick={()=>handleAnswer(opt)} style={{padding:"13px 10px",borderRadius:"12px",border:`1.5px solid ${border}`,background:bg,color:col,fontFamily:"inherit",fontSize:"0.85rem",fontWeight:500,cursor:answer!==null?"default":"pointer",textAlign:"center",transition:"all 0.2s",lineHeight:1.3}}>{opt}</button>;
-              })}
-            </div>
+            {mode===MODES.QUIZ_FLASH ? (
+              <div style={{display:"flex",flexDirection:"column",gap:"16px"}}>
+                <div style={{padding:"22px 20px",borderRadius:"22px",background:"linear-gradient(180deg,rgba(21,30,50,0.95),rgba(5,10,18,0.99))",border:"1px solid rgba(79,134,198,0.18)",boxShadow:"0 18px 40px rgba(0,0,0,0.18)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"10px",marginBottom:"12px"}}>
+                    <span style={{fontSize:"0.72rem",color:"#9bc9ff",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.14em"}}>{flashDirection==="countryToCapital" ? "Kraj → Stolica" : "Stolica → Kraj"}</span>
+                    <span style={{fontSize:"0.72rem",color:"#d0e8ff",background:"rgba(46,84,148,0.25)",padding:"6px 12px",borderRadius:"999px",fontWeight:600}}>{flashDirection==="countryToCapital" ? "Wpisz stolicę" : "Wpisz kraj"}</span>
+                  </div>
+                  <div style={{fontSize:"2.1rem",fontWeight:700,color:"#eef4ff",lineHeight:1.05,letterSpacing:"-0.015em"}}>{flashDirection==="countryToCapital" ? cur.name : cur.capital}</div>
+                  <div style={{marginTop:"10px",fontSize:"0.82rem",color:"#8ca8c7",maxWidth:"82%"}}>{flashDirection==="countryToCapital" ? "Spróbuj dopasować stolicę do kraju." : "Spróbuj dopasować kraj do stolicy."}</div>
+                </div>
+                <input value={typedAnswer} onChange={e=>setTypedAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAnswer(typedAnswer)}
+                  placeholder="Wpisz odpowiedź..."
+                  style={{width:"100%",padding:"14px 16px",borderRadius:"16px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#eaf2ff",fontFamily:"inherit",fontSize:"0.96rem",boxSizing:"border-box",outline:"none"}}
+                />
+                <button onClick={()=>handleAnswer(typedAnswer)} style={{padding:"13px",background:"linear-gradient(135deg,#4f86c6,#2ca87f)",color:"#fff",border:"none",borderRadius:"16px",fontFamily:"inherit",fontSize:"0.95rem",fontWeight:700,cursor:answer!==null?"default":"pointer",boxShadow:"0 10px 24px rgba(46,132,225,0.24)"}}>
+                  Sprawdź odpowiedź
+                </button>
+              </div>
+            ) : (
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"9px"}}>
+                {options.map(opt=>{
+                  const ca = getCorrectValue(cur,mode,flashDirection);
+                  let bg="#0c1628",border="#1a2740",col="#c0d5f0";
+                  if(answer!==null){
+                    if(opt===ca){bg="#091a0c";border="#2ca87f";col="#2ca87f";}
+                    else if(opt===answer){bg="#1a0909";border="#e85d4a";col="#e85d4a";}
+                    else{bg="#060c18";border="#0e1a2e";col="#223344";}
+                  }
+                  return <button key={opt} onClick={()=>handleAnswer(opt)} style={{padding:"13px 10px",borderRadius:"12px",border:`1.5px solid ${border}`,background:bg,color:col,fontFamily:"inherit",fontSize:"0.85rem",fontWeight:500,cursor:answer!==null?"default":"pointer",textAlign:"center",transition:"all 0.2s",lineHeight:1.3}}>{opt}</button>;
+                })}
+              </div>
+            )}
             {answer!==null&&(
               <div style={{marginTop:"1rem",textAlign:"center",fontSize:"0.82rem"}}>
-                {answer===(mode===MODES.QUIZ_CAPITAL?cur.capital:mode===MODES.QUIZ_COUNTRY?cur.name:cur.flag)
+                {normalize(answer)===normalize(getCorrectValue(cur,mode,flashDirection))
                   ?<span style={{color:"#2ca87f"}}>✓ Brawo! {streak>=3?"🔥".repeat(Math.min(streak,5)):""}</span>
-                  :<span style={{color:"#e85d4a"}}>✗ Poprawna: <b style={{color:"#d0e0ff"}}>{mode===MODES.QUIZ_CAPITAL?cur.capital:mode===MODES.QUIZ_COUNTRY?cur.name:cur.flag}</b></span>
+                  :<span style={{color:"#e85d4a"}}>✗ Poprawna: <b style={{color:"#d0e0ff"}}>{getCorrectValue(cur,mode,flashDirection)}</b></span>
                 }
               </div>
             )}
